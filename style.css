@@ -78,10 +78,10 @@ a { color: var(--color-primary); text-decoration: none; }
 }
 
 .app-header .brand img.logo {
-  height: 32px;
-  width: 32px;
+  height: 34px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
-  border-radius: 6px;
 }
 
 .app-header .brand-text h1 {
