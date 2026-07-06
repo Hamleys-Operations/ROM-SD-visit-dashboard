@@ -16,7 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<link rel="stylesheet" href="style.css?v=20260706d" />
+<link rel="stylesheet" href="style.css?v=20260706e" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
   <!-- Top App Bar -->
   <header class="app-header">
     <div class="brand">
-      <img src="logo.png?v=20260706d" alt="Hamleys" class="logo" onerror="this.style.display='none'" />
+      <img src="logo.png?v=20260706e" alt="Hamleys" class="logo" onerror="this.style.display='none'" />
       <div class="brand-text">
         <h1>Retail Audit Dashboard</h1>
         <span>Store Visit Compliance &amp; Score Tracker</span>
@@ -69,6 +69,10 @@
       <div class="filter-field">
         <label>Month</label>
         <input type="month" id="filter-month" />
+      </div>
+      <div class="filter-field">
+        <label>RM</label>
+        <select id="filter-rm"><option value="">All</option></select>
       </div>
       <div class="filter-field">
         <label>ROM</label>
@@ -145,11 +149,18 @@
         <div class="kpi-sub">Visits completed</div>
       </div>
       <div class="kpi-card">
+        <div class="kpi-top"><span class="kpi-label">Total RMs</span>
+          <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        </div>
+        <div class="kpi-value" id="kpi-total-rms">0</div>
+        <div class="kpi-sub">Regional managers</div>
+      </div>
+      <div class="kpi-card">
         <div class="kpi-top"><span class="kpi-label">Total ROMs</span>
           <div class="kpi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
         </div>
         <div class="kpi-value" id="kpi-total-roms">0</div>
-        <div class="kpi-sub">Regional managers</div>
+        <div class="kpi-sub">Regional operations managers</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-top"><span class="kpi-label">Total SDs</span>
@@ -172,6 +183,16 @@
       <div class="chart-card">
         <div class="panel-header"><h3>Visit Type Distribution</h3></div>
         <div class="chart-canvas-wrap"><canvas id="chart-visit-type"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="panel-header"><h3>RM-wise Visit Completion</h3></div>
+        <div class="chart-canvas-wrap"><canvas id="chart-rm-completion"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="panel-header"><h3>Average Visit Score by RM</h3></div>
+        <div class="chart-canvas-wrap"><canvas id="chart-rm-avg-score"></canvas></div>
       </div>
 
       <div class="chart-card">
@@ -212,7 +233,7 @@
       <div class="table-toolbar">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="visits-search" placeholder="Search by site, ROM, SD, visit type, checklist..." oninput="DASH.onTableSearch(this.value)" />
+          <input type="text" id="visits-search" placeholder="Search by site, RM, ROM, SD, visit type, checklist..." oninput="DASH.onTableSearch(this.value)" />
         </div>
         <button class="btn btn-sm" onclick="DASH.exportVisitsToExcel()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
@@ -226,6 +247,7 @@
               <th data-col="visitDate" onclick="DASH.sortVisitsTable('visitDate')">Visit Date <span class="sort-arrow">▲▼</span></th>
               <th data-col="siteCode" onclick="DASH.sortVisitsTable('siteCode')">Site Code <span class="sort-arrow">▲▼</span></th>
               <th data-col="siteName" onclick="DASH.sortVisitsTable('siteName')">Site Name <span class="sort-arrow">▲▼</span></th>
+              <th data-col="rm" onclick="DASH.sortVisitsTable('rm')">RM <span class="sort-arrow">▲▼</span></th>
               <th data-col="rom" onclick="DASH.sortVisitsTable('rom')">ROM <span class="sort-arrow">▲▼</span></th>
               <th data-col="sd" onclick="DASH.sortVisitsTable('sd')">SD <span class="sort-arrow">▲▼</span></th>
               <th data-col="visitType" onclick="DASH.sortVisitsTable('visitType')">Visit Type <span class="sort-arrow">▲▼</span></th>
@@ -234,6 +256,33 @@
             </tr>
           </thead>
           <tbody id="visits-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RM Performance Table -->
+    <div class="section-title">RM Performance</div>
+    <div class="panel">
+      <div class="table-toolbar">
+        <span class="panel-sub">Assigned stores, visits completed and average score per Regional Manager.</span>
+        <button class="btn btn-sm" onclick="DASH.exportRMToExcel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Export to Excel
+        </button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="rm-table">
+          <thead>
+            <tr>
+              <th data-col="name" onclick="DASH.sortRMTable('name')">RM <span class="sort-arrow">▲▼</span></th>
+              <th data-col="assigned" onclick="DASH.sortRMTable('assigned')">Assigned Stores <span class="sort-arrow">▲▼</span></th>
+              <th data-col="visited" onclick="DASH.sortRMTable('visited')">Visited Stores <span class="sort-arrow">▲▼</span></th>
+              <th data-col="pending" onclick="DASH.sortRMTable('pending')">Pending Stores <span class="sort-arrow">▲▼</span></th>
+              <th data-col="completionPct" onclick="DASH.sortRMTable('completionPct')">Completion % <span class="sort-arrow">▲▼</span></th>
+              <th data-col="avgScore" onclick="DASH.sortRMTable('avgScore')">Average Score <span class="sort-arrow">▲▼</span></th>
+            </tr>
+          </thead>
+          <tbody id="rm-table-body"></tbody>
         </table>
       </div>
     </div>
@@ -299,9 +348,9 @@
   </footer>
 
   <!-- Master mapping must load before app.js/filters.js/charts.js use it -->
-  <script src="mapping.js?v=20260706d"></script>
-  <script src="charts.js?v=20260706d"></script>
-  <script src="filters.js?v=20260706d"></script>
-  <script src="app.js?v=20260706d"></script>
+  <script src="mapping.js?v=20260706e"></script>
+  <script src="charts.js?v=20260706e"></script>
+  <script src="filters.js?v=20260706e"></script>
+  <script src="app.js?v=20260706e"></script>
 </body>
 </html>

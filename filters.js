@@ -2,11 +2,11 @@
  * filters.js
  * ---------------------------------------------------------------------------
  * Populates and applies the sticky filter bar:
- *   Date, Month, ROM, SD, Site Name, Site Code, Type of Visit, Checklist
+ *   Date, Month, RM, ROM, SD, Site Name, Site Code, Type of Visit, Checklist
  *
  * Selecting any filter instantly re-filters window.DASH.state.allRecords
  * into window.DASH.state.filteredRecords and calls DASH.renderAll(), which
- * refreshes KPIs, all charts and all three tables in one pass.
+ * refreshes KPIs, all charts and all tables in one pass.
  * ---------------------------------------------------------------------------
  */
 
@@ -15,10 +15,16 @@ window.DASH = window.DASH || {};
 (function (DASH) {
   "use strict";
 
+  const FILTER_IDS = [
+    "filter-date", "filter-month", "filter-rm", "filter-rom", "filter-sd",
+    "filter-site-name", "filter-site-code", "filter-visit-type", "filter-checklist"
+  ];
+
   DASH.filters = {
     values: {
       date: "",
       month: "",
+      rm: "",
       rom: "",
       sd: "",
       siteName: "",
@@ -30,10 +36,11 @@ window.DASH = window.DASH || {};
 
   /**
    * Fills every <select> in the filter bar with the distinct values found
-   * in the enriched records (and, for ROM/SD/Site, from the master mapping
-   * so that stores with zero visits still appear as filter options).
+   * in the enriched records (and, for RM/ROM/SD/Site, from the master
+   * mapping so that stores with zero visits still appear as filter options).
    */
   DASH.filters.populate = function (records) {
+    const rms = (typeof getAllRMs === "function") ? getAllRMs() : uniqueSorted(records, "rm");
     const roms = (typeof getAllRoms === "function") ? getAllRoms() : uniqueSorted(records, "rom");
     const sds = (typeof getAllSds === "function") ? getAllSds() : uniqueSorted(records, "sd");
     const siteNames = uniqueSorted(storeMapping || [], "siteName");
@@ -41,6 +48,7 @@ window.DASH = window.DASH || {};
     const visitTypes = uniqueSorted(records, "visitType");
     const checklists = uniqueSorted(records, "checklist");
 
+    fillSelect("filter-rm", rms);
     fillSelect("filter-rom", roms);
     fillSelect("filter-sd", sds);
     fillSelect("filter-site-name", siteNames);
@@ -75,6 +83,7 @@ window.DASH = window.DASH || {};
     const v = DASH.filters.values;
     v.date = getVal("filter-date");
     v.month = getVal("filter-month");
+    v.rm = getVal("filter-rm");
     v.rom = getVal("filter-rom");
     v.sd = getVal("filter-sd");
     v.siteName = getVal("filter-site-name");
@@ -87,6 +96,7 @@ window.DASH = window.DASH || {};
     if (v.date) rows = rows.filter(r => r.visitDate === v.date);
     // Month filter only applies when an exact date isn't already selected.
     if (!v.date && v.month) rows = rows.filter(r => r.month === v.month);
+    if (v.rm) rows = rows.filter(r => r.rm === v.rm);
     if (v.rom) rows = rows.filter(r => r.rom === v.rom);
     if (v.sd) rows = rows.filter(r => r.sd === v.sd);
     if (v.siteName) rows = rows.filter(r => r.siteName === v.siteName);
@@ -100,8 +110,7 @@ window.DASH = window.DASH || {};
   };
 
   DASH.filters.reset = function () {
-    ["filter-date", "filter-month", "filter-rom", "filter-sd", "filter-site-name",
-      "filter-site-code", "filter-visit-type", "filter-checklist"].forEach(id => {
+    FILTER_IDS.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = "";
     });
@@ -124,8 +133,7 @@ window.DASH = window.DASH || {};
 
   // Wire up change listeners once DOM is ready.
   document.addEventListener("DOMContentLoaded", function () {
-    ["filter-date", "filter-month", "filter-rom", "filter-sd", "filter-site-name",
-      "filter-site-code", "filter-visit-type", "filter-checklist"].forEach(id => {
+    FILTER_IDS.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", DASH.filters.apply);
     });

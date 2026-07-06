@@ -1,7 +1,7 @@
 /**
  * charts.js
  * ---------------------------------------------------------------------------
- * Builds and refreshes all 8 Chart.js visualisations on the live dashboard.
+ * Builds and refreshes all 10 Chart.js visualisations on the live dashboard.
  * Every chart is rebuilt (destroy + recreate) whenever DASH.renderAll() runs,
  * which keeps this module simple and guarantees charts always reflect the
  * current filtered record set with a smooth animated transition.
@@ -153,7 +153,65 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * 2. ROM-wise Visit Completion (bar %)
+   * 2. RM-wise Visit Completion (bar %)
+   *    RM = Regional Manager, the tier above ROM. Small, fixed category
+   *    count (currently 2), so a simple vertical bar is clean and legible.
+   * ------------------------------------------------------------------- */
+  function renderRmCompletion(records) {
+    const rows = DASH.computeRMPerformance(records);
+    makeChart("chart-rm-completion", {
+      type: "bar",
+      data: {
+        labels: rows.map(r => r.name),
+        datasets: [{
+          label: "Completion %",
+          data: rows.map(r => r.completionPct),
+          backgroundColor: "#0891b2",
+          borderRadius: 6,
+          maxBarThickness: 44
+        }]
+      },
+      options: baseOptions({
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => ctx.raw + "% complete" } },
+          datalabels: percentLabelsVertical("#0891b2")
+        },
+        scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + "%" } } }
+      })
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+   * 3. Average Visit Score by RM
+   * ------------------------------------------------------------------- */
+  function renderRmAvgScore(records) {
+    const rows = DASH.computeRMPerformance(records);
+    makeChart("chart-rm-avg-score", {
+      type: "bar",
+      data: {
+        labels: rows.map(r => r.name),
+        datasets: [{
+          label: "Average Score",
+          data: rows.map(r => r.avgScore),
+          backgroundColor: "#db2777",
+          borderRadius: 6,
+          maxBarThickness: 44
+        }]
+      },
+      options: baseOptions({
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => ctx.raw + "% avg score" } },
+          datalabels: percentLabelsVertical("#db2777")
+        },
+        scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + "%" } } }
+      })
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+   * 4. ROM-wise Visit Completion (bar %)
    * ------------------------------------------------------------------- */
   function renderRomCompletion(records) {
     const rows = DASH.computeRomPerformance(records);
@@ -181,7 +239,7 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * 3. SD-wise Visit Completion (horizontal bar %)
+   * 5. SD-wise Visit Completion (horizontal bar %)
    *    Rendered as horizontal bars (like the Top/Low Stores charts) because
    *    the SD list can run to well over a dozen names - horizontal bars
    *    keep every SD name and % value fully legible without any overlap,
@@ -216,7 +274,7 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * 4. Average Visit Score by ROM
+   * 6. Average Visit Score by ROM
    * ------------------------------------------------------------------- */
   function renderRomAvgScore(records) {
     const rows = DASH.computeRomPerformance(records);
@@ -244,7 +302,7 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * 5. Average Visit Score by SD (horizontal bar %)
+   * 7. Average Visit Score by SD (horizontal bar %)
    *    Same horizontal-bar treatment as SD-wise Visit Completion above, for
    *    the same reason: keeps every SD name and % score fully legible.
    * ------------------------------------------------------------------- */
@@ -277,7 +335,7 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * 6. Visit Type Distribution (pie)
+   * 8. Visit Type Distribution (pie)
    * ------------------------------------------------------------------- */
   function renderVisitTypeDistribution(records) {
     const byType = groupBy(records, r => r.visitType);
@@ -309,7 +367,7 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * 7 & 8. Top 10 Highest / Lowest Scoring Stores
+   * 9 & 10. Top 10 Highest / Lowest Scoring Stores
    *   Aggregated by store (average score across all its visits in the
    *   current filtered set).
    * ------------------------------------------------------------------- */
@@ -318,7 +376,7 @@ window.DASH = window.DASH || {};
     return Array.from(byStore.entries()).map(([siteCode, rows]) => ({
       siteCode,
       siteName: rows[0].siteName,
-      avgScore: DASH.utils.round1(avg(rows, r => r.visitScore))
+      avgScore: DASH.utils.roundPct(avg(rows, r => r.visitScore))
     }));
   }
 
@@ -386,6 +444,8 @@ window.DASH = window.DASH || {};
       return;
     }
     renderOverallCompletion(records);
+    renderRmCompletion(records);
+    renderRmAvgScore(records);
     renderRomCompletion(records);
     renderSdCompletion(records);
     renderRomAvgScore(records);

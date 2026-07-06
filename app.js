@@ -28,6 +28,7 @@ window.DASH = window.DASH || {};
     dataMeta: { lastUpdated: null, totalStoresConfigured: TOTAL_STORES },
     tableSearch: "",
     tableSort: { column: "visitDate", dir: "desc" },
+    rmSort: { column: "completionPct", dir: "desc" },
     romSort: { column: "completionPct", dir: "desc" },
     sdSort: { column: "completionPct", dir: "desc" }
   };
@@ -63,7 +64,9 @@ window.DASH = window.DASH || {};
       if (score >= 70) return "mid";
       return "low";
     },
-    round1(n) { return Math.round(n * 10) / 10; },
+    // All percentages (completion %, average score) are rounded to whole
+    // numbers - no decimals - per business requirement.
+    roundPct(n) { return Math.round(n); },
     debounce(fn, wait) {
       let t;
       return function (...args) {
@@ -159,6 +162,7 @@ window.DASH = window.DASH || {};
       checklist: r.checklist || "Unspecified",
       visitedBy: r.visitedBy || "Unspecified",
       visitScore: Number(r.visitScore) || 0,
+      rm: mapped ? mapped.rm : "Unmapped",
       rom: mapped ? mapped.rom : "Unmapped",
       sd: mapped ? mapped.sd : "Unmapped",
       month: (r.visitDate || "").slice(0, 7) // YYYY-MM
@@ -185,6 +189,7 @@ window.DASH = window.DASH || {};
     const avgScore = records.length
       ? records.reduce((sum, r) => sum + r.visitScore, 0) / records.length
       : 0;
+    const totalRMs = (typeof getAllRMs === "function") ? getAllRMs().length : 0;
     const totalRoms = (typeof getAllRoms === "function") ? getAllRoms().length : 0;
     const totalSds = (typeof getAllSds === "function") ? getAllSds().length : 0;
 
@@ -192,9 +197,10 @@ window.DASH = window.DASH || {};
       totalStores,
       storesVisited,
       storesPending,
-      completionPct: utils.round1(completionPct),
-      avgScore: utils.round1(avgScore),
+      completionPct: utils.roundPct(completionPct),
+      avgScore: utils.roundPct(avgScore),
       totalAudits: records.length,
+      totalRMs,
       totalRoms,
       totalSds
     };
@@ -207,6 +213,7 @@ window.DASH = window.DASH || {};
     setText("kpi-completion", kpis.completionPct + "%");
     setText("kpi-avg-score", kpis.avgScore + "%");
     setText("kpi-total-audits", kpis.totalAudits);
+    setText("kpi-total-rms", kpis.totalRMs);
     setText("kpi-total-roms", kpis.totalRoms);
     setText("kpi-total-sds", kpis.totalSds);
   };
@@ -217,8 +224,31 @@ window.DASH = window.DASH || {};
   }
 
   /* ---------------------------------------------------------------------
-   * ROM / SD performance tables
+   * RM / ROM / SD performance tables
    * ------------------------------------------------------------------- */
+  DASH.computeRMPerformance = function (records) {
+    const rms = (typeof getAllRMs === "function") ? getAllRMs() : [];
+    return rms.map(rm => {
+      const assigned = countStoresByRM(rm);
+      const rmRecords = records.filter(r => r.rm === rm);
+      const visitedSet = new Set(rmRecords.map(r => r.siteCode));
+      const visited = visitedSet.size;
+      const pending = Math.max(assigned - visited, 0);
+      const completionPct = assigned > 0 ? (visited / assigned) * 100 : 0;
+      const avgScore = rmRecords.length
+        ? rmRecords.reduce((s, r) => s + r.visitScore, 0) / rmRecords.length
+        : 0;
+      return {
+        name: rm,
+        assigned,
+        visited,
+        pending,
+        completionPct: utils.roundPct(completionPct),
+        avgScore: utils.roundPct(avgScore)
+      };
+    });
+  };
+
   DASH.computeRomPerformance = function (records) {
     const roms = (typeof getAllRoms === "function") ? getAllRoms() : [];
     return roms.map(rom => {
@@ -236,8 +266,8 @@ window.DASH = window.DASH || {};
         assigned,
         visited,
         pending,
-        completionPct: utils.round1(completionPct),
-        avgScore: utils.round1(avgScore)
+        completionPct: utils.roundPct(completionPct),
+        avgScore: utils.roundPct(avgScore)
       };
     });
   };
@@ -259,8 +289,8 @@ window.DASH = window.DASH || {};
         assigned,
         visited,
         pending,
-        completionPct: utils.round1(completionPct),
-        avgScore: utils.round1(avgScore)
+        completionPct: utils.roundPct(completionPct),
+        avgScore: utils.roundPct(avgScore)
       };
     });
   };
@@ -278,6 +308,31 @@ window.DASH = window.DASH || {};
     });
     return sorted;
   }
+
+  DASH.renderRMTable = function (records) {
+    const rows = sortRows(DASH.computeRMPerformance(records), DASH.state.rmSort, {});
+    const tbody = document.getElementById("rm-table-body");
+    if (!tbody) return;
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">No RM data available.</div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td><strong>${utils.escapeHtml(r.name)}</strong></td>
+        <td>${r.assigned}</td>
+        <td>${r.visited}</td>
+        <td>${r.pending}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="progress-bar" style="width:80px;"><span style="width:${r.completionPct}%;"></span></div>
+            <span>${r.completionPct}%</span>
+          </div>
+        </td>
+        <td><span class="score-pill ${utils.scoreClass(r.avgScore)}">${r.avgScore}%</span></td>
+      </tr>
+    `).join("");
+  };
 
   DASH.renderRomTable = function (records) {
     const rows = sortRows(DASH.computeRomPerformance(records), DASH.state.romSort, {});
@@ -339,6 +394,7 @@ window.DASH = window.DASH || {};
       rows = rows.filter(r =>
         (r.siteName || "").toLowerCase().includes(q) ||
         (r.siteCode || "").toLowerCase().includes(q) ||
+        (r.rm || "").toLowerCase().includes(q) ||
         (r.rom || "").toLowerCase().includes(q) ||
         (r.sd || "").toLowerCase().includes(q) ||
         (r.visitType || "").toLowerCase().includes(q) ||
@@ -354,7 +410,7 @@ window.DASH = window.DASH || {};
     if (!tbody) return;
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">No visit records match the current filters.</div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">No visit records match the current filters.</div></td></tr>';
       return;
     }
 
@@ -363,6 +419,7 @@ window.DASH = window.DASH || {};
         <td>${utils.formatDate(r.visitDate)}</td>
         <td>${utils.escapeHtml(r.siteCode)}</td>
         <td>${utils.escapeHtml(r.siteName)}</td>
+        <td>${utils.escapeHtml(r.rm)}</td>
         <td>${utils.escapeHtml(r.rom)}</td>
         <td>${utils.escapeHtml(r.sd)}</td>
         <td>${utils.escapeHtml(r.visitType)}</td>
@@ -381,6 +438,13 @@ window.DASH = window.DASH || {};
     s.column = column;
     updateSortIndicators("visits-table", column, s.dir);
     DASH.renderVisitsTable(DASH.state.filteredRecords);
+  };
+  DASH.sortRMTable = function (column) {
+    const s = DASH.state.rmSort;
+    s.dir = (s.column === column && s.dir === "asc") ? "desc" : "asc";
+    s.column = column;
+    updateSortIndicators("rm-table", column, s.dir);
+    DASH.renderRMTable(DASH.state.filteredRecords);
   };
   DASH.sortRomTable = function (column) {
     const s = DASH.state.romSort;
@@ -423,9 +487,18 @@ window.DASH = window.DASH || {};
   DASH.exportVisitsToExcel = function () {
     exportRowsToExcel(
       DASH._lastVisitsRows || DASH.state.filteredRecords,
-      ["visitDate", "siteCode", "siteName", "rom", "sd", "visitType", "checklist", "visitScore"],
-      ["Visit Date", "Site Code", "Site Name", "ROM", "SD", "Visit Type", "Checklist", "Visit Score"],
+      ["visitDate", "siteCode", "siteName", "rm", "rom", "sd", "visitType", "checklist", "visitScore"],
+      ["Visit Date", "Site Code", "Site Name", "RM", "ROM", "SD", "Visit Type", "Checklist", "Visit Score"],
       "Store_Visit_Details.xlsx"
+    );
+  };
+
+  DASH.exportRMToExcel = function () {
+    exportRowsToExcel(
+      DASH.computeRMPerformance(DASH.state.filteredRecords),
+      ["name", "assigned", "visited", "pending", "completionPct", "avgScore"],
+      ["RM", "Assigned Stores", "Visited Stores", "Pending Stores", "Completion %", "Average Score"],
+      "RM_Performance.xlsx"
     );
   };
 
@@ -520,6 +593,7 @@ window.DASH = window.DASH || {};
     const kpis = DASH.computeKPIs(records);
     DASH.renderKPIs(kpis);
     DASH.renderVisitsTable(records);
+    DASH.renderRMTable(records);
     DASH.renderRomTable(records);
     DASH.renderSdTable(records);
     if (DASH.charts && typeof DASH.charts.renderAll === "function") {

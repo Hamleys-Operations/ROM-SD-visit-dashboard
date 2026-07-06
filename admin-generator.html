@@ -7,7 +7,7 @@
 
 <!-- SheetJS: reads the daily Store Visit Audit Excel report -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="style.css?v=20260706d" />
+<link rel="stylesheet" href="style.css?v=20260706e" />
 </head>
 <body>
 
@@ -15,7 +15,7 @@
 
   <header class="app-header">
     <div class="brand">
-      <img src="logo.png?v=20260706d" alt="Hamleys" class="logo" onerror="this.style.display='none'" />
+      <img src="logo.png?v=20260706e" alt="Hamleys" class="logo" onerror="this.style.display='none'" />
       <div class="brand-text">
         <h1>Admin: Generate data.json</h1>
         <span>Upload the daily Store Visit Audit Excel report</span>
@@ -65,7 +65,7 @@
           <thead>
             <tr>
               <th>Visit Date</th><th>Visit Type</th><th>Site Code</th><th>Site Name</th>
-              <th>Checklist</th><th>Visit Done By</th><th>Visit Score</th><th>ROM</th><th>SD</th>
+              <th>Checklist</th><th>Visit Done By</th><th>Visit Score</th><th>RM</th><th>ROM</th><th>SD</th>
             </tr>
           </thead>
           <tbody id="preview-table-body"></tbody>
@@ -91,6 +91,7 @@
       <p class="panel-sub">This admin page validates every Site Code against <code>mapping.js</code>. To add, remove or reassign a store, edit the <code>storeMapping</code> array in that file directly - no other file needs to change.</p>
       <div class="summary-grid">
         <div class="summary-box"><div class="val" id="map-total-stores">0</div><div class="lab">Stores in Mapping</div></div>
+        <div class="summary-box"><div class="val" id="map-total-rms">0</div><div class="lab">RMs</div></div>
         <div class="summary-box"><div class="val" id="map-total-roms">0</div><div class="lab">ROMs</div></div>
         <div class="summary-box"><div class="val" id="map-total-sds">0</div><div class="lab">SDs</div></div>
       </div>
@@ -100,7 +101,7 @@
 
   <footer class="app-footer">Retail Audit Dashboard &middot; Admin Upload Tool &middot; 100% static, runs entirely in your browser</footer>
 
-  <script src="mapping.js?v=20260706d"></script>
+  <script src="mapping.js?v=20260706e"></script>
   <script>
   /**
    * Admin upload logic. Runs entirely client-side: SheetJS parses the
@@ -124,6 +125,7 @@
 
     document.addEventListener("DOMContentLoaded", function () {
       setText("map-total-stores", storeMapping.length);
+      setText("map-total-rms", getAllRMs().length);
       setText("map-total-roms", getAllRoms().length);
       setText("map-total-sds", getAllSds().length);
 
@@ -360,11 +362,12 @@
       const tbody = document.getElementById("preview-table-body");
       const sample = records.slice(0, 50);
       if (!sample.length) {
-        tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">No valid records to preview.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state">No valid records to preview.</div></td></tr>';
         return;
       }
       tbody.innerHTML = sample.map(function (r) {
         const mapped = getStoreBySiteCode(r.siteCode);
+        const rm = mapped ? mapped.rm : "Unmapped";
         const rom = mapped ? mapped.rom : "Unmapped";
         const sd = mapped ? mapped.sd : "Unmapped";
         return "<tr>" +
@@ -375,6 +378,7 @@
           "<td>" + escapeHtml(r.checklist) + "</td>" +
           "<td>" + escapeHtml(r.visitedBy) + "</td>" +
           "<td><span class=\"score-pill " + scoreClass(r.visitScore) + "\">" + r.visitScore + "%</span></td>" +
+          "<td>" + escapeHtml(rm) + "</td>" +
           "<td>" + escapeHtml(rom) + "</td>" +
           "<td>" + escapeHtml(sd) + "</td>" +
           "</tr>";
